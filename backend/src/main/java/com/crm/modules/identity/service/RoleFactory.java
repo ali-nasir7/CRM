@@ -31,6 +31,7 @@ public final class RoleFactory {
                     PermissionKeys.TASK_VIEW, PermissionKeys.TASK_CREATE, PermissionKeys.TASK_UPDATE, PermissionKeys.TASK_DELETE,
                     PermissionKeys.MEETING_VIEW, PermissionKeys.MEETING_CREATE, PermissionKeys.MEETING_UPDATE,
                     PermissionKeys.EMAIL_VIEW, PermissionKeys.EMAIL_SEND, PermissionKeys.EMAIL_ACCOUNT_VIEW,
+                    PermissionKeys.EMAIL_ACCOUNT_CREATE, PermissionKeys.EMAIL_ACCOUNT_UPDATE, PermissionKeys.EMAIL_ACCOUNT_DELETE,
                     PermissionKeys.TEMPLATE_VIEW, PermissionKeys.TEMPLATE_CREATE, PermissionKeys.TEMPLATE_UPDATE,
                     PermissionKeys.CAMPAIGN_VIEW, PermissionKeys.CAMPAIGN_CREATE, PermissionKeys.CAMPAIGN_UPDATE, PermissionKeys.CAMPAIGN_SEND,
                     PermissionKeys.DEAL_VIEW, PermissionKeys.DEAL_CREATE, PermissionKeys.DEAL_UPDATE,

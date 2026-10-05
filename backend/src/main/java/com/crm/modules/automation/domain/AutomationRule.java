@@ -32,7 +32,7 @@ public class AutomationRule extends TenantEntity {
     private String name;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 24)
+    
     @Column(name = "trigger_type", nullable = false, length = 24)
     private Trigger trigger;
 

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Network: talk to the CRM backend (REST pairing + WebSocket control channel). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Place the outgoing call itself (ACTION_CALL requires this; without it the app could
+         only pre-fill the dialer via ACTION_DIAL and would need the rep to tap Call). -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+
+    <!-- Observe real call state (idle/ringing/off-hook) to report CALL_STARTED/CALL_ENDED
+         honestly instead of assuming the dial succeeded. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- Keep the WebSocket connection alive while the app is not in the foreground - this is
+         what lets the CRM's Call button reach the phone at all. This is a control-channel
+         connection, not an ongoing phone call: the "phoneCall" FGS type is reserved for the
+         default dialer / apps that register the call with TelecomManager (neither of which this
+         app does - CallExecutor dispatches ACTION_CALL and lets the system dialer own the call
+         UI), and declaring it anyway makes startForeground() throw
+         ForegroundServiceStartNotAllowedException on Android 14+. "specialUse" is the documented
+         type for a persistent-connection use case that doesn't fit the other categories. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Reconnect automatically after the phone reboots, without the rep re-opening the app. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Requested explicitly on the Permissions screen with a plain-language explanation
+         (never silently) so Android does not throttle/kill the persistent connection. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:name=".PhoneAgentApplication"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.PhoneAgent"
+>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.PhoneAgent">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".service.PhoneAgentConnectionService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Maintains an authenticated connection to the company CRM so incoming call requests can reach this phone" />
+        </service>
+
+        <receiver
+            android:name=".service.BootCompletedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

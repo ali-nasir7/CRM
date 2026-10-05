@@ -35,6 +35,7 @@ spring:
       write-dates-as-timestamps: false
 
 server:
+  address: 0.0.0.0
   port: 8080
   forward-headers-strategy: framework
   error:
@@ -79,11 +80,11 @@ crm:
     admin-password: ${CRM_ADMIN_PASSWORD:Admin123!}
     org-name: ${CRM_ORG_NAME:Nexus Sales}
   mail:
-    host: ${CRM_MAIL_HOST:localhost}
-    port: ${CRM_MAIL_PORT:1025}
-    username: ${CRM_MAIL_USERNAME:}
+    host: ${CRM_MAIL_HOST:smtp.gmail.com}
+    port: ${CRM_MAIL_PORT:587}
+    username: ${CRM_MAIL_USERNAME:ammadhamid721@gmail.com}
     password: ${CRM_MAIL_PASSWORD:}
-    from: ${CRM_MAIL_FROM:hazeljones.cse@gmail.com}
+    from: ${CRM_MAIL_FROM:ammadhamid721@gmail.com}
   ai:
     api-key: ${CRM_AI_API_KEY:}
     base-url: ${CRM_AI_BASE_URL:https://api.openai.com/v1}

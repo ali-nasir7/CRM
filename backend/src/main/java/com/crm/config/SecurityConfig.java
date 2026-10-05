@@ -60,6 +60,8 @@ public class SecurityConfig {
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/complete-onboarding").permitAll()
                 .requestMatchers("/api/v1/calling/bridge/status", "/api/v1/calling/bridge/heartbeat").permitAll() // protected by shared bridge token in code
+                .requestMatchers("/api/v1/calling/pairing/complete").permitAll() // protected by the single-use pairing code in code
+                .requestMatchers("/ws/agent/**").permitAll() // protected by the per-device token in AgentHandshakeInterceptor
                 .requestMatchers("/api/v1/track/**").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)

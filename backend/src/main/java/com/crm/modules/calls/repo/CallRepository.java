@@ -24,6 +24,11 @@ public interface CallRepository extends JpaRepository<Call, UUID>, JpaSpecificat
 
     Optional<Call> findFirstByProviderRef(String providerRef);
 
+    /** Idempotency guard: a device already mid-call cannot be asked to dial again (duplicate
+     *  clicks, retried requests). Mirrors the one-call-at-a-time rule the legacy bridge enforces
+     *  locally, but here it is authoritative for BOTH calling paths. */
+    boolean existsByOrganizationIdAndDeviceIdAndStatusIn(UUID orgId, UUID deviceId, List<String> statuses);
+
     long countByOrganizationIdAndOccurredAtBetween(UUID orgId, Instant from, Instant to);
 
     @Query("select c.userId, count(c) from Call c where c.organizationId = :orgId and c.occurredAt between :from and :to group by c.userId")

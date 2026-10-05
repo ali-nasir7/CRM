@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- HTTP is deliberately available only to these local development endpoints. Release builds inherit the platform default (HTTPS/WSS only). -->
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

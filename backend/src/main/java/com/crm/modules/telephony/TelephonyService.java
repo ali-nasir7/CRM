@@ -26,9 +26,16 @@ public interface TelephonyService {
     /**
      * bridgeUrl: per-device bridge endpoint announced by the bridge heartbeat. Providers
      * should prefer it over any global default so each user's calls reach THEIR phone.
+     * connectionMode: "BRIDGE" or "AGENT" - {@link com.crm.modules.calling.service.CallingService}
+     * is the single caller of {@link #initiate}, so this is really a routing hint for whichever
+     * composite implementation is wired in front of the two concrete providers.
+     * callId: caller-supplied idempotency key. The legacy bridge ignores it (it mints its own
+     * reference); the Phone Agent provider uses it verbatim as the CALL_REQUEST id so retries or
+     * duplicate delivery of the same command can never dial twice.
      */
     record CallCommand(UUID orgId, UUID userId, UUID deviceId, String deviceName,
-                       String fromNumber, String toNumber, String customerName, String bridgeUrl) {}
+                       String fromNumber, String toNumber, String customerName, String bridgeUrl,
+                       String connectionMode, UUID callId) {}
 
     record InitiationResult(String providerRef, String state) {}
 

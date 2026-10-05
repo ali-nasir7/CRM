@@ -512,7 +512,7 @@ export interface TagItem { id: string; name: string; color: string | null }
 export interface SourceItem { id: string; key: string; name: string; description: string | null }
 export interface CustomFieldItem { id: string; key: string; label: string; type: string; options: string[] | null; position: number }
 
-// ---- Calling (user-specific cellular bridge) ----
+// ---- Calling (user-specific cellular bridge + CRM Phone Agent) ----
 export interface CallingDeviceItem {
   id: string
   deviceName: string
@@ -521,7 +521,14 @@ export interface CallingDeviceItem {
   status: string
   isDefault: boolean
   lastSeenAt: string | null
+  connectionMode: 'AGENT' | 'BRIDGE'
+  appVersion: string | null
+  deviceModel: string | null
+  revokedAt: string | null
+  userId: string
 }
+
+export interface PairingStartResponse { code: string; expiresAt: string }
 
 /** Response of GET /calling/health - powers the Call Health panel. */
 export interface BridgeHealthInfo {

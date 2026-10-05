@@ -5,6 +5,7 @@ import com.crm.modules.activity.domain.ActivityType;
 import com.crm.modules.activity.service.ActivityService;
 import com.crm.modules.calling.domain.CallingDevice;
 import com.crm.modules.calling.repo.CallingDeviceRepository;
+import com.crm.modules.calling.ws.AgentSessionRegistry;
 import com.crm.modules.calls.domain.Call;
 import com.crm.modules.calls.repo.CallRepository;
 import com.crm.modules.identity.repo.UserRepository;
@@ -13,6 +14,7 @@ import com.crm.modules.telephony.TelephonyService;
 import com.crm.modules.tasks.dto.TaskDtos.CreateTaskRequest;
 import com.crm.modules.tasks.service.TaskService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,7 @@ import java.util.UUID;
  * The bridge reports state changes asynchronously; terminal states finalize the
  * Call row (timestamps, duration, outcome) and append the activity-timeline entry.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CallingService {
@@ -50,6 +53,7 @@ public class CallingService {
     private final TaskService taskService;
     private final TelephonyService telephony;
     private final com.crm.modules.telephony.BridgeHealthProbe bridgeProbe;
+    private final AgentSessionRegistry agentSessions;
 
     @Value("${crm.bridge.token:}")
     private String bridgeToken;
@@ -178,16 +182,27 @@ public class CallingService {
         }
         List<CallingDevice> mine = devices.findByOrganizationIdAndUserId(orgId, userId);
         if (mine.isEmpty()) {
-            throw ApiException.business("No calling device registered for your account. Add one under Calls > My calling devices.");
+            throw ApiException.business("NO_PHONE_REGISTERED: No phone connected. Please connect your CRM Phone Agent, "
+                + "or add a legacy bridge device under Calls > My calling devices.");
         }
         CallingDevice device = requestedDeviceId != null
             ? devices.findOwned(orgId, userId, requestedDeviceId)
                 .orElseThrow(() -> ApiException.forbidden("Device not found for your account"))
             : mine.stream().filter(CallingDevice::isDefault).findFirst().orElse(mine.get(0));
+        if (device.getRevokedAt() != null) {
+            throw ApiException.business("PHONE_REVOKED: \"" + device.getDeviceName() + "\" has been disconnected and can no longer place calls.");
+        }
         applyEffectiveStatus(device);
         if (!"ONLINE".equals(device.getStatus())) {
-            throw ApiException.business("Calling device \"" + device.getDeviceName()
-                + "\" is offline. Start the bridge app, or pick another device.");
+            throw ApiException.business("AGENT".equals(device.getConnectionMode())
+                ? "PHONE_OFFLINE: Your phone is offline. Open CRM Phone Agent and reconnect."
+                : "PHONE_OFFLINE: Calling device \"" + device.getDeviceName() + "\" is offline. Start the bridge app, or pick another device.");
+        }
+        // Idempotency: one authoritative call at a time per device, regardless of which path
+        // dials it. Collapses double-clicks and retried requests into a single real dial.
+        if (calls.existsByOrganizationIdAndDeviceIdAndStatusIn(orgId, device.getId(),
+                List.of("INITIATING", "RINGING", "CONNECTED"))) {
+            throw ApiException.business("CALL_ALREADY_PROCESSED: This device already has a call in progress.");
         }
         String customerName = null;
         if (leadId != null) {
@@ -198,7 +213,7 @@ public class CallingService {
         try {
             result = telephony.initiate(new TelephonyService.CallCommand(
                 orgId, userId, device.getId(), device.getDeviceName(), device.getPhoneNumber(),
-                number, customerName, device.getBridgeUrl()));
+                number, customerName, device.getBridgeUrl(), device.getConnectionMode(), UUID.randomUUID()));
         } catch (TelephonyService.TelephonyException e) {
             throw ApiException.business(e.getMessage());
         }
@@ -243,6 +258,26 @@ public class CallingService {
         return calls.findById(callId)
             .filter(c -> c.getOrganizationId().equals(orgId) && c.getUserId().equals(userId))
             .orElseThrow(() -> ApiException.notFound("Call not found"));
+    }
+
+    /**
+     * Rep-initiated "End call": lets the rep unstick their device from the CRM side without
+     * waiting on (or being blocked forever by) a device-reported state change - the device may
+     * be offline, mid-reconnect, or simply never sent one for this call. Idempotent: ending an
+     * already-ENDED call is a no-op. Reuses the same "CONNECTED" outcome sentinel the automatic
+     * bridge/agent ENDED path already uses (see applyBridgeState) so the frontend's existing
+     * "ask the rep what actually happened" outcome picker shows up either way.
+     */
+    @Transactional
+    public Call endCall(UUID orgId, UUID userId, UUID callId) {
+        Call call = calls.findById(callId)
+            .filter(c -> c.getOrganizationId().equals(orgId) && c.getUserId().equals(userId))
+            .orElseThrow(() -> ApiException.notFound("Call not found"));
+        if (!"ENDED".equals(call.getStatus())) {
+            finalizeCall(call, "CONNECTED", Instant.now());
+            calls.save(call);
+        }
+        return call;
     }
 
     /** Rep sets the business outcome after the call (and optionally books a follow-up). */
@@ -316,7 +351,54 @@ public class CallingService {
     }
 
     private void applyEffectiveStatus(CallingDevice d) {
+        if (d.getRevokedAt() != null) { d.setStatus("REVOKED"); return; }
+        if ("AGENT".equals(d.getConnectionMode())) {
+            // The live WebSocket connection map is authoritative for Phone Agent devices - not a
+            // heartbeat freshness window - so a dropped connection reads OFFLINE immediately
+            // instead of staying falsely ONLINE for up to HEARTBEAT_FRESHNESS.
+            d.setStatus(agentSessions.isOnline(d.getId()) ? "ONLINE" : "OFFLINE");
+            return;
+        }
         boolean fresh = d.getLastSeenAt() != null && d.getLastSeenAt().isAfter(Instant.now().minus(HEARTBEAT_FRESHNESS));
         d.setStatus(fresh ? "ONLINE" : "OFFLINE");
+    }
+
+    // ---- Phone Agent presence (called from the WebSocket layer only) ------------------------
+
+    @Transactional
+    public void agentConnected(UUID deviceId) {
+        devices.findById(deviceId).ifPresent(d -> {
+            d.setStatus("ONLINE");
+            d.setLastSeenAt(Instant.now());
+            devices.save(d);
+        });
+        log.info("DEVICE_CONNECTED deviceId={}", deviceId);
+    }
+
+    @Transactional
+    public void agentDisconnected(UUID deviceId) {
+        devices.findById(deviceId).ifPresent(d -> {
+            if (!"REVOKED".equals(d.getStatus())) d.setStatus("OFFLINE");
+            devices.save(d);
+        });
+        log.info("DEVICE_DISCONNECTED deviceId={}", deviceId);
+    }
+
+    @Transactional
+    public void agentHeartbeat(UUID deviceId) {
+        devices.findById(deviceId).ifPresent(d -> {
+            d.setLastSeenAt(Instant.now());
+            devices.save(d);
+        });
+    }
+
+    /** Applies inbound {reportedAppVersion, reportedModel} learned at connect time (best-effort). */
+    @Transactional
+    public void updateAgentMeta(UUID deviceId, String appVersion, String deviceModel) {
+        devices.findById(deviceId).ifPresent(d -> {
+            if (appVersion != null && !appVersion.isBlank()) d.setAppVersion(appVersion);
+            if (deviceModel != null && !deviceModel.isBlank()) d.setDeviceModel(deviceModel);
+            devices.save(d);
+        });
     }
 }

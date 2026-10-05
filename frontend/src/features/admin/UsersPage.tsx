@@ -14,6 +14,7 @@ import { Input, Select, Label } from '@/components/ui/Input'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { Avatar } from '@/components/ui/Misc'
 import { fmtDate } from '@/lib/utils'
+import { AdminPhoneDevices } from '@/features/calling/AdminPhoneDevices'
 
 const STATUS_TONES: Record<string, 'green' | 'gray' | 'red' | 'yellow'> = { ACTIVE: 'green', INVITED: 'yellow', SUSPENDED: 'red', DISABLED: 'gray' }
 const EMPTY = { email: '', password: '', firstName: '', lastName: '', jobTitle: '', phone: '', roleKeys: [] as string[], teamIds: [] as string[] }
@@ -110,6 +111,8 @@ export default function UsersPage() {
       <div className="card">
         <DataTable data={data} loading={isFetching} columns={columns} onPageChange={setPage} onRowClick={(u) => canUpdate && setEditUser(u)} />
       </div>
+
+      <AdminPhoneDevices />
 
       {/* Create */}
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="New user" wide>

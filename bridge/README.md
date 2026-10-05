@@ -1,6 +1,25 @@
-# Android Phone Bridge
+# Android Phone Bridge (LEGACY / DEVELOPMENT FALLBACK)
 
-This is the missing piece that makes the CRM "Call" button actually dial. It is a
+**This is no longer the production calling path.** The CRM Phone Agent app (`android/`) replaces
+it: a rep installs the app, pairs it from the CRM (Calls > Pair Phone Agent), and the CRM's Call
+button dials over a WebSocket the app holds open - no PC, no adb, no USB debugging, no per-phone
+backend configuration. See `android/README.md` and the project's phone-agent report for the full
+architecture and API contract.
+
+This bridge is kept only as a rollback/dev-machine option: `CallingDevice.connectionMode` is
+`BRIDGE` for anything registered the old way and `AGENT` for anything paired through the new app,
+and `CallRoutingTelephonyService` on the backend dispatches a call through exactly one of the two
+paths based on that field - a device can never be dialed through both. New devices should be
+paired through CRM Phone Agent; treat this bridge as legacy unless you have a specific reason
+(no phone available yet, debugging the old path) to still run it.
+
+---
+
+Below is the original bridge documentation, unchanged, for anyone still running it.
+
+---
+
+This is the (legacy) piece that makes the CRM "Call" button dial via a PC-tethered phone. It is a
 single Node.js script with **zero npm dependencies** - it uses `adb` to place the
 call on YOUR Android phone with YOUR SIM, exactly like the architecture doc says:
 

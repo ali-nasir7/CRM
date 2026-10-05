@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Mail } from 'lucide-react'
 import { api } from '@/api/client'
 import type { EmailItem, PageResponse } from '@/types'
@@ -46,7 +46,17 @@ export default function EmailsPage() {
 
   return (
     <div>
-      <PageHeader title="Email activity" subtitle="All emails sent through connected accounts, with open / reply / bounce tracking." />
+      <PageHeader
+        title="Email activity"
+        subtitle="All emails sent through connected accounts, with open / reply / bounce tracking."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Link to="/emails/accounts" className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Accounts</Link>
+            <Link to="/emails/templates" className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Templates</Link>
+            <Link to="/emails/suppressions" className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Suppressions</Link>
+          </div>
+        }
+      />
       <div className="card mb-3 flex flex-wrap gap-2 p-3">
         <Select value={direction} onChange={(e) => { setDirection(e.target.value); setPage(0) }} className="w-40">
           <option value="">All directions</option>

@@ -4,6 +4,10 @@
   handle /api/* {
     reverse_proxy backend:8080
   }
+  # Phone Agent control channel; Caddy forwards WebSocket upgrades automatically.
+  handle /ws/* {
+    reverse_proxy backend:8080
+  }
   handle {
     root /srv
     try_files {path} /index.html

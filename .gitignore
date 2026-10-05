@@ -4,6 +4,15 @@ backend/data/
 *.class
 *.jar
 !backend/.mvn/wrapper/*
+!android/gradle/wrapper/*
+
+# Android
+android/local.properties
+android/.gradle/
+android/app/build/
+android/build/
+android/*.apk
+android/*.aab
 
 # Node
 frontend/node_modules/

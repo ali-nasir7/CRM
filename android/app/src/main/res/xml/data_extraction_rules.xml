@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- allowBackup is false, so these rules are inert - present only because android:dataExtractionRules
+     requires a resource to exist. The device token lives in EncryptedSharedPreferences and must
+     never leave this device via backup/transfer even if allowBackup is ever revisited. -->
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapability="true">
+        <exclude domain="sharedpref" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" />
+    </device-transfer>
+</data-extraction-rules>

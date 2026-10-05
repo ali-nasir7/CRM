@@ -1,0 +1,9 @@
+<resources>
+    <!-- Pure-Compose app: this XML theme only controls the window before Compose takes over
+         (status bar, initial background) - all real theming (light/dark, colors, typography)
+         lives in ui/theme/Theme.kt. -->
+    <style name="Theme.PhoneAgent" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>

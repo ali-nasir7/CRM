@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { PhoneCall } from 'lucide-react'
+import { PhoneCall, PhoneOff } from 'lucide-react'
 import { api, apiError } from '@/api/client'
 import type { CallStateItem, CallingDeviceItem } from '@/types'
 import { Button } from '@/components/ui/Button'
@@ -70,6 +70,12 @@ export function CallNowModal({ open, onClose, leadId, leadName, defaultNumber }:
     onError: (e) => setError(apiError(e).message),
   })
 
+  const endCall = useMutation({
+    mutationFn: async () => (await api.post<CallStateItem>(`/calling/calls/${activeCall!.id}/end`)).data,
+    onSuccess: (c) => { setActiveCall(c); setError(null) },
+    onError: (e) => setError(apiError(e).message),
+  })
+
   const finish = useMutation({
     mutationFn: async () => (await api.patch<CallStateItem>(`/calling/calls/${activeCall!.id}`, {
       outcome, notes, createFollowUp: followUp && outcome === 'CALL_BACK_LATER',
@@ -92,11 +98,21 @@ export function CallNowModal({ open, onClose, leadId, leadName, defaultNumber }:
   }
 
   const running = activeCall && ['INITIATING', 'RINGING', 'CONNECTED'].includes(activeCall.status)
+  const selectedDevice = (devices ?? []).find((d) => d.id === deviceId)
+    ?? (devices ?? []).find((d) => d.isDefault)
+    ?? (devices ?? [])[0]
+  // BRIDGE (legacy adb bridge + Windows Phone Link) genuinely mirrors call audio to the PC over
+  // Bluetooth. AGENT (the CRM Phone Agent companion app) places a real SIM call with ACTION_CALL -
+  // there is no audio path to the PC at all, so saying otherwise here would send reps into a call
+  // listening to a PC headset that was never going to carry any audio.
+  const audioHint = selectedDevice?.connectionMode === 'BRIDGE'
+    ? 'Placed from YOUR registered device. Your PC headset handles audio via your phone link.'
+    : 'Placed from YOUR phone’s own SIM. Talk and listen on the PHONE itself (its earpiece/speaker, or a Bluetooth headset paired to the PHONE) - the PC does not carry call audio.'
 
   return (
     <Dialog open={open} onClose={close} wide
       title={activeCall ? (running ? 'Call in progress' : 'Call finished') : `Call ${leadName ?? 'number'}`}
-      description={activeCall ? undefined : 'Placed from YOUR registered device. Your PC headset handles audio via your phone link.'}>
+      description={activeCall ? undefined : audioHint}>
       <div className="space-y-4">
         {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">{error}</div>}
 
@@ -144,6 +160,18 @@ export function CallNowModal({ open, onClose, leadId, leadName, defaultNumber }:
                 </p>
               </div>
             </div>
+
+            {running && (
+              <>
+                <p className="text-xs text-slate-500">{audioHint}</p>
+                <Button
+                  variant="danger" className="w-full"
+                  loading={endCall.isPending} onClick={() => endCall.mutate()}
+                >
+                  <PhoneOff className="h-4 w-4" /> End call
+                </Button>
+              </>
+            )}
 
             {activeCall.status === 'ENDED' && (
               <>

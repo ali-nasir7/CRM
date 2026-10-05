@@ -116,7 +116,7 @@ export function ImportWizard({ open, onClose }: { open: boolean; onClose: () => 
           <p className="text-sm font-medium text-slate-700">Drop your file here, or</p>
           <Button className="mt-2" variant="secondary" loading={upload.isPending} onClick={() => fileRef.current?.click()}>Choose file</Button>
           <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload.mutate(f) }} />
-          <p className="mt-3 text-xs text-slate-400">CSV or Excel, up to 20 MB. The first sheet / row is treated as headers.</p>
+          <p className="mt-3 text-xs text-slate-400">CSV or Excel, up to 10 MB. The first sheet / row is treated as headers.</p>
         </div>
       ) : (
         <div className="space-y-4">

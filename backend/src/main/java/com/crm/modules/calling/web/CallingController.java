@@ -2,6 +2,7 @@ package com.crm.modules.calling.web;
 
 import com.crm.modules.calling.domain.CallingDevice;
 import com.crm.modules.calling.service.CallingService;
+import com.crm.modules.calling.service.DevicePairingService;
 import com.crm.modules.calls.domain.Call;
 import com.crm.modules.identity.service.PermissionKeys;
 import com.crm.security.CurrentUser;
@@ -17,7 +18,9 @@ import java.util.UUID;
 
 /**
  * User-specific cellular calling. Every route is scoped to the logged-in user's own
- * devices; the bridge callback route is the only one authenticated by shared token.
+ * devices; the bridge callback and pairing/complete routes are the only ones NOT authenticated
+ * by a CRM user JWT (a bare Android install has none yet) - they are protected in code instead,
+ * by a shared bridge token and a single-use pairing code respectively.
  */
 @RestController
 @RequestMapping("/api/v1/calling")
@@ -26,20 +29,28 @@ import java.util.UUID;
 public class CallingController {
 
     private final CallingService calling;
+    private final DevicePairingService pairing;
 
     public record DeviceRequest(String deviceName, String phoneNumber, String platform) {}
     public record CallRequest(UUID leadId, UUID contactId, String number, UUID deviceId) {}
     public record OutcomeRequest(String outcome, String notes, boolean createFollowUp, Instant followUpDueAt) {}
     public record BridgeStatusRequest(String ref, String state) {}
     public record BridgeHeartbeatRequest(java.util.UUID deviceId, String url) {}
+    public record PairingCompleteRequest(String code, String installationId, String deviceName,
+                                         String platform, String appVersion, String deviceModel) {}
 
     public record DeviceItem(UUID id, String deviceName, String phoneNumber, String platform,
-                             String status, boolean isDefault, Instant lastSeenAt) {
+                             String status, boolean isDefault, Instant lastSeenAt, String connectionMode,
+                             String appVersion, String deviceModel, Instant revokedAt, UUID userId) {
         static DeviceItem from(CallingDevice d) {
             return new DeviceItem(d.getId(), d.getDeviceName(), d.getPhoneNumber(), d.getPlatform(),
-                d.getStatus(), d.isDefault(), d.getLastSeenAt());
+                d.getStatus(), d.isDefault(), d.getLastSeenAt(), d.getConnectionMode(),
+                d.getAppVersion(), d.getDeviceModel(), d.getRevokedAt(), d.getUserId());
         }
     }
+
+    public record PairingStartResponse(String code, Instant expiresAt) {}
+    public record PairingCompleteResponse(UUID deviceId, String deviceToken, String userDisplayName) {}
 
     public record CallStateItem(UUID id, String status, String outcome, String number,
                                 UUID deviceId, Instant startedAt, Instant answeredAt,
@@ -86,6 +97,57 @@ public class CallingController {
         return Map.of("status", "ONLINE");
     }
 
+    @PostMapping("/devices/{id}/revoke")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.CALL_CREATE + "')")
+    public Map<String, String> revoke(@PathVariable UUID id) {
+        pairing.revoke(CurrentUser.require().getOrganizationId(), CurrentUser.require().getId(), id);
+        return Map.of("status", "REVOKED");
+    }
+
+    @PostMapping("/devices/{id}/test")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.CALL_VIEW + "')")
+    public Map<String, Object> test(@PathVariable UUID id) {
+        boolean reachable = pairing.testConnection(CurrentUser.require().getOrganizationId(), CurrentUser.require().getId(), id);
+        return Map.of("reachable", reachable);
+    }
+
+    // ---- Phone Agent pairing ----
+
+    /** Shown as a 6-digit code in the CRM; the sales rep types it into CRM Phone Agent. */
+    @PostMapping("/pairing/start")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.CALL_CREATE + "')")
+    public PairingStartResponse startPairing() {
+        DevicePairingService.PairingStarted started = pairing.startPairing(
+            CurrentUser.require().getOrganizationId(), CurrentUser.require().getId());
+        return new PairingStartResponse(started.code(), started.expiresAt());
+    }
+
+    /**
+     * Called by the Phone Agent app itself, before it has any CRM session (permitAll in
+     * SecurityConfig; protected by the single-use pairing code instead of a JWT).
+     */
+    @PostMapping("/pairing/complete")
+    public PairingCompleteResponse completePairing(@RequestBody PairingCompleteRequest request) {
+        DevicePairingService.PairingCompleted result = pairing.completePairing(request.code(), request.installationId(),
+            request.deviceName(), request.platform(), request.appVersion(), request.deviceModel());
+        return new PairingCompleteResponse(result.device().getId(), result.rawToken(), result.userDisplayName());
+    }
+
+    // ---- admin/manager visibility (reuses USER_VIEW: device ownership is user-management data) ----
+
+    @GetMapping("/admin/devices")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.USER_VIEW + "')")
+    public List<DeviceItem> adminDevices() {
+        return pairing.listForOrg(CurrentUser.require().getOrganizationId()).stream().map(DeviceItem::from).toList();
+    }
+
+    @PostMapping("/admin/devices/{id}/revoke")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.USER_VIEW + "')")
+    public Map<String, String> adminRevoke(@PathVariable UUID id) {
+        pairing.revokeAsAdmin(CurrentUser.require().getOrganizationId(), id);
+        return Map.of("status", "REVOKED");
+    }
+
     // ---- calls ----
 
     /** Diagnostics for the Calls-page "Call health" panel (read-only, no secrets in response). */
@@ -115,6 +177,14 @@ public class CallingController {
         return CallStateItem.from(calling.finalize(CurrentUser.require().getOrganizationId(),
             CurrentUser.require().getId(), id, request.outcome(), request.notes(),
             request.createFollowUp(), request.followUpDueAt()));
+    }
+
+    /** Rep-initiated "End call" - releases the device's in-progress lock from the CRM side,
+     *  regardless of whether (or when) the device itself ever reports a terminal state. */
+    @PostMapping("/calls/{id}/end")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.CALL_CREATE + "')")
+    public CallStateItem endCall(@PathVariable UUID id) {
+        return CallStateItem.from(calling.endCall(CurrentUser.require().getOrganizationId(), CurrentUser.require().getId(), id));
     }
 
     @GetMapping("/analytics")

@@ -52,4 +52,33 @@ public class CallingDevice extends TenantEntity {
     private Instant lastSeenAt;
 
     private boolean isDefault;
+
+    /**
+     * BRIDGE (legacy: PC-side adb bridge, {@link com.crm.modules.telephony.AndroidBridgeTelephonyService})
+     * or AGENT (CRM Phone Agent app, paired to this row and connected over WebSocket -
+     * {@link com.crm.modules.telephony.PhoneAgentTelephonyService}). Exactly one of the two
+     * TelephonyService implementations ever handles a given call: CallRoutingTelephonyService
+     * dispatches on this field, so a device can never be double-dialed through both paths.
+     */
+    @Column(name = "connection_mode", nullable = false, length = 16)
+    private String connectionMode = "BRIDGE";
+
+    /** Stable app-generated installation identity (never a hardware/ADB serial). AGENT only. */
+    @Column(name = "installation_id", length = 128)
+    private String installationId;
+
+    /** SHA-256 hex of the long-lived device session token issued at pairing. Never the raw token. */
+    @Column(name = "device_token_hash", length = 128)
+    private String deviceTokenHash;
+
+    @Column(name = "app_version", length = 32)
+    private String appVersion;
+
+    @Column(name = "device_model", length = 80)
+    private String deviceModel;
+
+    /** Set when a rep replaces this phone or an admin revokes it. A revoked device's token is
+     *  permanently rejected at the WebSocket handshake, even if it is still physically online. */
+    @Column(name = "revoked_at")
+    private Instant revokedAt;
 }

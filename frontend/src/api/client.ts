@@ -10,7 +10,9 @@ export interface ApiErrorShape {
 
 export const api = axios.create({
   baseURL: '/api/v1',
-  headers: { 'Content-Type': 'application/json' },
+  // Let Axios/browser choose the request content type. In particular, FormData
+  // needs a browser-generated multipart boundary rather than a JSON header.
+  headers: { Accept: 'application/json' },
 })
 
 export const TOKEN_KEY = 'crm.accessToken'

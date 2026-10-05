@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">CRM Phone Agent</string>
+    <string name="notification_channel_name">Phone Agent connection</string>
+    <string name="notification_channel_description">Keeps CRM Phone Agent connected so the CRM can place calls on this phone</string>
+</resources>
